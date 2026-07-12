@@ -118,7 +118,7 @@ callbacks.
 - Full API reference on [pkg.go.dev](https://pkg.go.dev/github.com/malcolmston/streamlit/st).
 - See [`examples/main.go`](examples/main.go) for a complete app exercising the
   display, widget, chart, and layout APIs.
-- Docs site (forthcoming): <https://malcolmston.github.io/streamlit/>.
+- Docs site: <https://malcolmston.github.io/streamlit/>.
 
 ## License
 
