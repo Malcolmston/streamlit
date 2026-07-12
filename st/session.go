@@ -82,9 +82,10 @@ type Session struct {
 
 	id      string
 	mu      sync.Mutex
-	widgets map[string]any  // persisted widget values keyed by widget key
-	clicked map[string]bool // buttons/transient triggers fired for this run
-	counter int             // auto-key ordinal counter, reset each run
+	widgets map[string]any            // persisted widget values keyed by widget key
+	clicked map[string]bool           // buttons/transient triggers fired for this run
+	uploads map[string][]UploadedFile // files received per file-uploader key
+	counter int                       // auto-key ordinal counter, reset each run
 
 	rootEl  *Element
 	sidebar *Container
@@ -101,6 +102,7 @@ func newSession() *Session {
 		id:      randomID(),
 		widgets: map[string]any{},
 		clicked: map[string]bool{},
+		uploads: map[string][]UploadedFile{},
 	}
 	s.reset()
 	return s

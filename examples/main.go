@@ -13,6 +13,8 @@ import (
 	"log"
 	"math"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/malcolmston/streamlit/st"
 )
@@ -73,6 +75,103 @@ func app(s *st.Session) {
 		{"2", ftoa(series[2])},
 	})
 	exp.Code("s.LineChart(series)", "go")
+
+	// New in 0.2.0: tabs grouping more charts and widgets.
+	s.Divider()
+	s.Header("More components")
+	tabs := s.Tabs([]string{"Charts", "Widgets", "Form", "Chat"})
+
+	// Charts tab: scatter, pie, histogram, all server-side SVG.
+	xs, ys := scatterData(series)
+	tabs[0].Subheader("Scatter")
+	tabs[0].ScatterChart(xs, ys)
+	tabs[0].Subheader("Distribution")
+	tabs[0].Histogram(series, 12)
+	tabs[0].Subheader("Waveform mix")
+	tabs[0].PieChart([]float64{3, 5, 2}, []string{"sine", "cosine", "sawtooth"})
+
+	// Widgets tab: toggle, color picker, select-slider, feedback, download.
+	w := tabs[1]
+	if w.Toggle("Show a cached fact", false) {
+		fact := s.Cache("fact", func() any { return expensiveFact() })
+		w.Info(fact.(string))
+	}
+	col := w.ColorPicker("Pick a colour", "#4c78a8")
+	w.Metric("Selected colour", col, "")
+	size := w.SelectSlider("T-shirt size", []string{"XS", "S", "M", "L", "XL"})
+	w.Write("You chose size **" + size + "**.")
+	if r := w.Feedback("stars"); r >= 0 {
+		w.Caption("Thanks for rating: " + itoa(r+1) + "/5")
+	}
+	w.DownloadButton("Download series as CSV", "series.csv", []byte(seriesCSV(series)))
+
+	// Form tab: batched submission.
+	f := tabs[2].Form("profile")
+	name := f.TextInput("Name", "")
+	age := int(f.NumberInput("Age", 30))
+	if f.FormSubmitButton("Save") {
+		s.State.Set("profile", name)
+	}
+	if saved := s.State.GetString("profile", ""); saved != "" {
+		tabs[2].Success("Saved profile for " + saved + " (age " + itoa(age) + ")")
+	}
+
+	// Chat tab: a tiny echo assistant backed by session state.
+	chat := tabs[3]
+	history := getHistory(s)
+	for _, msg := range history {
+		chat.ChatMessage(msg.role).Markdown(msg.text)
+	}
+	if msg := chat.ChatInput("Say hi to the echo bot"); msg != "" {
+		history = append(history,
+			chatMsg{"user", msg},
+			chatMsg{"assistant", "You said: _" + msg + "_"})
+		s.State.Set("history", history)
+	}
+}
+
+// chatMsg is a single stored chat turn.
+type chatMsg struct {
+	role string
+	text string
+}
+
+// getHistory returns the chat history stored in session state.
+func getHistory(s *st.Session) []chatMsg {
+	if v, ok := s.State.Get("history"); ok {
+		if h, ok := v.([]chatMsg); ok {
+			return h
+		}
+	}
+	return nil
+}
+
+// scatterData pairs a series against its own shifted copy for a demo scatter.
+func scatterData(series []float64) (xs, ys []float64) {
+	for i := range series {
+		xs = append(xs, series[i])
+		ys = append(ys, series[(i+3)%len(series)])
+	}
+	return xs, ys
+}
+
+// seriesCSV formats a series as CSV text for the download button.
+func seriesCSV(series []float64) string {
+	var b strings.Builder
+	b.WriteString("i,value\n")
+	for i, v := range series {
+		b.WriteString(itoa(i))
+		b.WriteByte(',')
+		b.WriteString(ftoa(v))
+		b.WriteByte('\n')
+	}
+	return b.String()
+}
+
+// expensiveFact simulates a costly computation memoised by st.Cache.
+func expensiveFact() string {
+	time.Sleep(150 * time.Millisecond)
+	return "This sentence was computed once and cached across every rerun."
 }
 
 // twoCols returns two equal columns.

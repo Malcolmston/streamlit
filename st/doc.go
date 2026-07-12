@@ -57,12 +57,39 @@
 //		}
 //	}
 //
+// # Widgets, layout, media and charts
+//
+// Beyond the basics the package offers a broad surface, each piece backed by
+// per-session state and rendered by the embedded frontend:
+//
+//   - Widgets: [Container.Button], [Container.Checkbox], [Container.Toggle],
+//     [Container.Slider], [Container.SelectSlider], [Container.NumberInput],
+//     [Container.TextInput], [Container.TextArea], [Container.SelectBox],
+//     [Container.Radio], [Container.MultiSelect], [Container.DateInput],
+//     [Container.TimeInput], [Container.ColorPicker], [Container.Feedback],
+//     [Container.DownloadButton] and [Container.FileUploader].
+//   - Layout: [Container.Columns], [Container.Container], [Container.Expander],
+//     [Container.Tabs], [Container.Popover], [Container.Status],
+//     [Container.Empty] and [Session.Sidebar].
+//   - Forms: [Container.Form] with [Container.FormSubmitButton] batch widget
+//     updates until the form is submitted.
+//   - Chat: [Container.ChatMessage] and [Container.ChatInput].
+//   - Media: [Container.Image], [Container.Logo], [Container.Audio],
+//     [Container.Video] and [Container.Map]. Bytes and [image.Image] values are
+//     embedded as base64 data URIs.
+//   - Charts (server-side SVG): [Container.LineChart], [Container.AreaChart],
+//     [Container.BarChart], [Container.ScatterChart], [Container.PieChart] and
+//     [Container.Histogram].
+//   - Caching: [Session.Cache] memoises an expensive computation process-wide,
+//     across reruns and sessions, with an optional TTL — the analogue of
+//     st.cache_data.
+//
 // # Deferred features
 //
-// This is an MVP of a large framework. Deliberately deferred: custom
-// components, caching decorators (st.cache_data/st.cache_resource), file
-// uploads, multipage apps, real-time streaming/async widgets, dataframe
-// editing, theming APIs and forms. The synchronous long-poll-free transport
-// also means [Container.Spinner] and [Container.Progress] are snapshots of the
+// This is a compact reimplementation of a large framework. Deliberately
+// deferred: custom components, resource caching (st.cache_resource),
+// multipage apps, real-time streaming/async widgets, in-place dataframe
+// editing and theming APIs. The synchronous long-poll-free transport also
+// means [Container.Spinner] and [Container.Progress] are snapshots of the
 // completed run rather than live-updating during work.
 package st

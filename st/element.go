@@ -42,6 +42,11 @@ func (c *Container) addWidget(key, typ string, p props) *Element {
 	if p == nil {
 		p = props{}
 	}
+	// Widgets appended inside a form carry the form's key so the frontend can
+	// stage their changes and only commit them on submission.
+	if c.form != "" {
+		p["form"] = c.form
+	}
 	el := &Element{Type: typ, Key: key, Props: map[string]any(p)}
 	c.node.Children = append(c.node.Children, el)
 	return el

@@ -84,8 +84,23 @@ func isTabular(t reflect.Type) bool {
 //     each element becomes a row;
 //   - a single struct, rendered as a one-row table.
 //
-// Anything else falls back to a JSON view.
-func (c *Container) Table(data any) {
+// An optional caption is shown beneath the table. Anything unsupported falls
+// back to a JSON view.
+func (c *Container) Table(data any, caption ...string) {
+	c.table(data, optKey(caption), false)
+}
+
+// DataFrame renders tabular data like [Container.Table] but adds a client-side
+// sorting hint, so column headers can be clicked to sort the rows in the
+// browser. It mirrors Streamlit's st.dataframe entry point and accepts an
+// optional caption.
+func (c *Container) DataFrame(data any, caption ...string) {
+	c.table(data, optKey(caption), true)
+}
+
+// table is the shared implementation for [Container.Table] and
+// [Container.DataFrame].
+func (c *Container) table(data any, caption string, sortable bool) {
 	header, rows, ok := tableData(data)
 	if !ok {
 		c.JSON(data)
@@ -104,12 +119,8 @@ func (c *Container) Table(data any) {
 	for i, h := range header {
 		hdr[i] = h
 	}
-	c.add("table", props{"header": hdr, "rows": jsonRows})
+	c.add("table", props{"header": hdr, "rows": jsonRows, "caption": caption, "sortable": sortable})
 }
-
-// DataFrame is an alias for [Container.Table]; it exists to mirror Streamlit's
-// st.dataframe entry point.
-func (c *Container) DataFrame(data any) { c.Table(data) }
 
 // tableData extracts a header and string-cell rows from supported inputs.
 func tableData(data any) (header []string, rows [][]string, ok bool) {

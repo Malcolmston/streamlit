@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-12
+### Added
+- Widgets: `Toggle`, `SelectSlider`, `DateInput`, `TimeInput`, `ColorPicker`,
+  `Feedback` (stars/thumbs), `DownloadButton` (serves bytes as a data URI), and
+  `FileUploader` (multipart upload into per-session state).
+- Forms: `Form` and `FormSubmitButton` — widgets inside a form stage their
+  values in the browser and commit atomically on submit (new `/api/upload`
+  endpoint and batched form-submit events extend the JSON protocol additively).
+- Layout: `Tabs`, `Popover`, `Status` (with state), and `Empty`.
+- Chat: `ChatMessage` and `ChatInput`.
+- Media: `Image` (accepts `image.Image` or PNG/JPEG bytes), `Logo`, `Audio`,
+  `Video` (bytes or URL), and `Map` (lat/lng points to inline SVG).
+- Charts: `ScatterChart`, `PieChart`, and `Histogram`, rendered server-side to
+  inline SVG like the existing charts.
+- Caching: `Session.Cache` memoises a computation process-wide across reruns and
+  sessions, with an optional TTL — the analogue of `@st.cache_data`.
+- Data touches: `Table`/`DataFrame` captions and a client-side sort hint,
+  collapsible `JSON`, and `MetricColored` for normal/inverse/off delta coloring.
+- Frontend renderers and styling for every new element type, plus an expanded
+  `examples/` demo showcasing tabs, the new charts, widgets, a form, and chat.
+
 ## [0.1.0] - 2026-07-12
 ### Added
 - Initial release — a standard-library-only Go port of Streamlit for building
@@ -27,5 +48,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: gofmt · vet · build gate a `-race` + coverage run, plus golangci-lint v2,
   govulncheck, cross-compile, dependency review, and VERSION-driven releases.
 
-[Unreleased]: https://github.com/malcolmston/streamlit/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/malcolmston/streamlit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/malcolmston/streamlit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/malcolmston/streamlit/releases/tag/v0.1.0

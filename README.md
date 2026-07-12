@@ -81,17 +81,28 @@ with no callbacks or manual DOM code on your part.
   `st.session_state`) that survives reruns, so counters, history, and cached
   computations persist. Widget values are restored automatically on each run.
 - **Display API** — `Title`, `Header`, `Subheader`, `Text`, `Markdown`,
-  `Caption`, `Code`, `JSON`, `Metric`, `Divider`, the `Success`/`Info`/
-  `Warning`/`Error` alerts, and a Swiss-army `Write` that dispatches on an
-  argument's dynamic type.
-- **Widget API** — `Button`, `Checkbox`, `Slider`, `NumberInput`, `TextInput`,
-  `TextArea`, `SelectBox`, `Radio`, and `MultiSelect`. Every widget returns its
-  current value.
-- **Chart API** — `LineChart`, `AreaChart`, and `BarChart`, each taking one or
-  more numeric series.
-- **Layout** — `Columns`, `Container`, `Expander`, and a `Sidebar`. Because
-  every method lives on `*Container`, the same API works for the main body, the
-  sidebar, and each column.
+  `Caption`, `Code`, `JSON` (optionally collapsible), `Metric`/`MetricColored`,
+  `Table`/`DataFrame` (captions and a client-side sort hint), `Divider`, the
+  `Success`/`Info`/`Warning`/`Error` alerts, and a Swiss-army `Write` that
+  dispatches on an argument's dynamic type.
+- **Widget API** — `Button`, `Checkbox`, `Toggle`, `Slider`, `SelectSlider`,
+  `NumberInput`, `TextInput`, `TextArea`, `SelectBox`, `Radio`, `MultiSelect`,
+  `DateInput`, `TimeInput`, `ColorPicker`, `Feedback` (stars/thumbs),
+  `DownloadButton` (serves bytes as a data URI), and `FileUploader` (multipart
+  upload into session state). Every widget returns its current value.
+- **Forms** — `Form` plus `FormSubmitButton` batch the widgets inside a form so
+  their values commit together on submit rather than rerunning per keystroke.
+- **Chat** — `ChatMessage` bubbles and a pinned `ChatInput` for building
+  conversational UIs.
+- **Media** — `Image` (accepts `image.Image` or PNG/JPEG bytes), `Logo`,
+  `Audio`, `Video` (bytes or URL), and `Map` (lat/lng points as an SVG plot).
+- **Chart API** — `LineChart`, `AreaChart`, `BarChart`, `ScatterChart`,
+  `PieChart`, and `Histogram`, all rendered to inline SVG on the server.
+- **Caching** — `s.Cache(key, compute, ttl…)` memoises an expensive computation
+  process-wide across reruns and sessions, the analogue of `@st.cache_data`.
+- **Layout** — `Columns`, `Container`, `Expander`, `Tabs`, `Popover`, `Status`,
+  `Empty`, and a `Sidebar`. Because every method lives on `*Container`, the same
+  API works for the main body, the sidebar, and each column.
 - **Embedded, dependency-free web UI** — a small single-page frontend is
   embedded with `go:embed` and served by the Go binary. There is no npm build
   and no JavaScript framework.

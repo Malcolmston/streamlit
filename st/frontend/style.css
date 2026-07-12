@@ -104,6 +104,87 @@ button.st:hover { border-color: var(--accent); color: var(--accent); }
 .st-spinner { color: var(--muted); font-size: .9rem; }
 
 .st-chart svg { max-width: 100%; height: auto; }
+.st-map svg { max-width: 100%; height: auto; border-radius: 6px; }
+
+.st-metric .delta.off { color: var(--muted); }
+
+/* Table caption + sortable headers. */
+.st-table-wrap { margin: .5rem 0; }
+table.st th.sortable { cursor: pointer; user-select: none; }
+table.st th.sortable:hover { color: var(--accent); }
+
+/* JSON disclosure. */
+.st-json-details { background: var(--code-bg); border-radius: 6px; padding: .3rem .6rem; }
+.st-json-details > summary { cursor: pointer; color: var(--muted); }
+.st-json-details pre.st-json { padding: .5rem 0 0; }
+
+/* Media. */
+.st-image img, .st-logo, .st-audio, .st-video { max-width: 100%; }
+.st-image { margin: .5rem 0; }
+.st-logo { height: 40px; width: auto; }
+.st-audio, .st-video { display: block; margin: .5rem 0; }
+figure.st-image { margin: .5rem 0; }
+figure.st-image figcaption { text-align: center; }
+
+/* Tabs. */
+.st-tabs { margin: .5rem 0; }
+.st-tab-bar { display: flex; gap: .25rem; border-bottom: 1px solid var(--border); }
+button.st-tab {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  padding: .5rem .9rem; cursor: pointer; font: inherit; color: var(--muted);
+}
+button.st-tab.active { color: var(--fg); border-bottom-color: var(--accent); }
+.st-tab-panels { padding: .75rem 0; }
+
+/* Popover. */
+.st-popover { position: relative; display: inline-block; margin: .5rem 0; }
+.st-popover-panel {
+  position: absolute; z-index: 10; margin-top: .3rem; min-width: 220px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: .75rem 1rem; box-shadow: 0 6px 24px rgba(0,0,0,.12);
+}
+
+/* Status. */
+.st-status { border: 1px solid var(--border); border-radius: 6px; margin: .5rem 0; }
+.st-status > summary { cursor: pointer; padding: .6rem 1rem; }
+.st-status > div { padding: .2rem 1rem 1rem; }
+.st-status.complete { border-color: #1a7f37; }
+.st-status.error { border-color: #cf222e; }
+
+/* Empty + form. */
+.st-form { border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin: .5rem 0; }
+
+/* Chat. */
+.st-chat-message { display: flex; gap: .6rem; padding: .6rem 0; }
+.st-chat-avatar { font-size: 1.4rem; flex: 0 0 auto; }
+.st-chat-body { flex: 1 1 auto; min-width: 0; }
+.st-chat-message.user .st-chat-body { background: var(--code-bg); border-radius: 8px; padding: .3rem .75rem; }
+.st-chat-input input { width: 100%; }
+
+/* Toggle switch. */
+.st-toggle-label { display: flex; align-items: center; gap: .5rem; cursor: pointer; }
+.st-toggle-input { display: none; }
+.st-toggle-track {
+  width: 38px; height: 20px; border-radius: 10px; background: var(--border);
+  position: relative; transition: background .15s; flex: 0 0 auto;
+}
+.st-toggle-track::after {
+  content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; transition: transform .15s;
+}
+.st-toggle-input:checked + .st-toggle-track { background: var(--accent); }
+.st-toggle-input:checked + .st-toggle-track::after { transform: translateX(18px); }
+
+/* Feedback. */
+.st-feedback-btn {
+  background: none; border: none; font-size: 1.3rem; cursor: pointer;
+  color: var(--muted); padding: 0 .1rem; line-height: 1;
+}
+.st-feedback-btn.active { color: var(--accent); }
+
+/* Download button + file list. */
+a.st-download { display: inline-block; text-decoration: none; }
+.st-file-list { margin: .4rem 0 0; padding-left: 1.2rem; font-size: .85rem; color: var(--muted); }
 
 #status {
   position: fixed; bottom: .5rem; right: .5rem;

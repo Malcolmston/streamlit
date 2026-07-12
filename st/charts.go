@@ -31,6 +31,174 @@ func (c *Container) BarChart(series ...[]float64) {
 	c.add("chart", props{"svg": renderChart("bar", series, 640, 320)})
 }
 
+// ScatterChart adds a scatter plot of the paired xs and ys values, rendered to
+// inline SVG on the server. Points beyond the shorter of the two slices are
+// ignored. Unlike the line/bar/area charts, the axes are scaled to the data
+// rather than anchored at zero.
+func (c *Container) ScatterChart(xs, ys []float64) {
+	c.add("chart", props{"svg": renderScatter(xs, ys, 640, 320)})
+}
+
+// PieChart adds a pie chart. values gives each slice's magnitude and the
+// optional labels name the slices in order. Non-positive totals render an empty
+// chart.
+func (c *Container) PieChart(values []float64, labels []string) {
+	c.add("chart", props{"svg": renderPie(values, labels, 640, 320)})
+}
+
+// Histogram adds a histogram of data grouped into the given number of bins
+// (clamped to at least one), rendered as a bar chart. It is a convenience over
+// bucketing the data yourself and calling [Container.BarChart].
+func (c *Container) Histogram(data []float64, bins int) {
+	c.add("chart", props{"svg": renderHistogram(data, bins, 640, 320)})
+}
+
+// histogramCounts buckets data into bins equal-width bins spanning its range
+// and returns the per-bin counts. With fewer than one bin it uses one; when all
+// values are equal every value falls in the first bin.
+func histogramCounts(data []float64, bins int) []float64 {
+	if bins < 1 {
+		bins = 1
+	}
+	counts := make([]float64, bins)
+	if len(data) == 0 {
+		return counts
+	}
+	minV, maxV := math.Inf(1), math.Inf(-1)
+	for _, v := range data {
+		minV = math.Min(minV, v)
+		maxV = math.Max(maxV, v)
+	}
+	if maxV == minV {
+		counts[0] = float64(len(data))
+		return counts
+	}
+	width := (maxV - minV) / float64(bins)
+	for _, v := range data {
+		idx := int((v - minV) / width)
+		if idx >= bins {
+			idx = bins - 1
+		}
+		if idx < 0 {
+			idx = 0
+		}
+		counts[idx]++
+	}
+	return counts
+}
+
+// renderHistogram buckets data and draws the counts as a bar chart.
+func renderHistogram(data []float64, bins, width, height int) string {
+	return renderChart("bar", [][]float64{histogramCounts(data, bins)}, width, height)
+}
+
+// renderScatter draws paired points as circles with data-scaled axes.
+func renderScatter(xs, ys []float64, width, height int) string {
+	const padL, padR, padT, padB = 40, 20, 20, 30
+	plotW := float64(width - padL - padR)
+	plotH := float64(height - padT - padB)
+
+	n := len(xs)
+	if len(ys) < n {
+		n = len(ys)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img">`,
+		width, height, width, height)
+	fmt.Fprintf(&b, `<rect x="%d" y="%d" width="%.0f" height="%.0f" fill="none" stroke="#e0e0e0"/>`,
+		padL, padT, plotW, plotH)
+
+	if n == 0 {
+		b.WriteString(`<text x="50%" y="50%" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="12">no data</text></svg>`)
+		return b.String()
+	}
+
+	minX, maxX := math.Inf(1), math.Inf(-1)
+	minY, maxY := math.Inf(1), math.Inf(-1)
+	for i := 0; i < n; i++ {
+		minX, maxX = math.Min(minX, xs[i]), math.Max(maxX, xs[i])
+		minY, maxY = math.Min(minY, ys[i]), math.Max(maxY, ys[i])
+	}
+	if maxX == minX {
+		maxX = minX + 1
+	}
+	if maxY == minY {
+		maxY = minY + 1
+	}
+	xAt := func(v float64) float64 { return float64(padL) + plotW*(v-minX)/(maxX-minX) }
+	yAt := func(v float64) float64 { return float64(padT) + plotH*(1-(v-minY)/(maxY-minY)) }
+
+	for i := 0; i < n; i++ {
+		fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="3.5" fill="%s" fill-opacity="0.7"/>`,
+			xAt(xs[i]), yAt(ys[i]), chartPalette[0])
+	}
+	fmt.Fprintf(&b, `<text x="%d" y="%.1f" text-anchor="end" fill="#666" font-family="sans-serif" font-size="10">%s</text>`,
+		padL-4, float64(padT)+8, trimNum(maxY))
+	fmt.Fprintf(&b, `<text x="%d" y="%.1f" text-anchor="end" fill="#666" font-family="sans-serif" font-size="10">%s</text>`,
+		padL-4, float64(padT)+plotH, trimNum(minY))
+	b.WriteString(`</svg>`)
+	return b.String()
+}
+
+// renderPie draws a pie chart from values and optional labels.
+func renderPie(values []float64, labels []string, width, height int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img">`,
+		width, height, width, height)
+
+	total := 0.0
+	for _, v := range values {
+		if v > 0 {
+			total += v
+		}
+	}
+	cx, cy := float64(height)/2, float64(height)/2
+	r := float64(height)/2 - 20
+	if total <= 0 {
+		fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="%.1f" fill="none" stroke="#ddd"/>`, cx, cy, r)
+		b.WriteString(`<text x="50%" y="50%" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="12">no data</text></svg>`)
+		return b.String()
+	}
+
+	angle := -math.Pi / 2 // start at 12 o'clock
+	legendX := float64(height) + 10
+	legendY := 24.0
+	for i, v := range values {
+		if v <= 0 {
+			continue
+		}
+		frac := v / total
+		next := angle + frac*2*math.Pi
+		col := chartPalette[i%len(chartPalette)]
+		x1, y1 := cx+r*math.Cos(angle), cy+r*math.Sin(angle)
+		x2, y2 := cx+r*math.Cos(next), cy+r*math.Sin(next)
+		large := 0
+		if frac > 0.5 {
+			large = 1
+		}
+		fmt.Fprintf(&b, `<path d="M%.1f,%.1f L%.1f,%.1f A%.1f,%.1f 0 %d 1 %.1f,%.1f Z" fill="%s"/>`,
+			cx, cy, x1, y1, r, r, large, x2, y2, col)
+		label := fmt.Sprintf("%d", i)
+		if i < len(labels) {
+			label = labels[i]
+		}
+		fmt.Fprintf(&b, `<rect x="%.1f" y="%.1f" width="12" height="12" fill="%s"/>`, legendX, legendY-10, col)
+		fmt.Fprintf(&b, `<text x="%.1f" y="%.1f" fill="#333" font-family="sans-serif" font-size="12">%s (%s%%)</text>`,
+			legendX+18, legendY, escapeText(label), trimNum(frac*100))
+		legendY += 20
+		angle = next
+	}
+	b.WriteString(`</svg>`)
+	return b.String()
+}
+
+// escapeText escapes the handful of characters that are unsafe inside SVG text.
+func escapeText(s string) string {
+	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+	return r.Replace(s)
+}
+
 // renderChart produces a self-contained SVG document string for the given
 // chart kind and series. It is deliberately free of external dependencies so
 // it can be unit-tested and embedded directly into the element tree.

@@ -15,6 +15,18 @@ import (
 type Container struct {
 	s    *Session
 	node *Element
+	// form is non-empty when this container (or an ancestor it was derived
+	// from) is a form created by [Container.Form]. Widgets appended to a form
+	// container defer their state updates until the form is submitted; see
+	// forms.go.
+	form string
+}
+
+// child creates a sub-container rooted at node, inheriting this container's
+// form association so that layout regions nested inside a form still defer
+// their widgets' updates.
+func (c *Container) child(node *Element) *Container {
+	return &Container{s: c.s, node: node, form: c.form}
 }
 
 // Title adds a top-level page title.
@@ -46,20 +58,36 @@ func (c *Container) Code(code, lang string) {
 }
 
 // JSON adds a pretty-printed JSON view of value. Values that cannot be
-// marshalled are rendered using their Go default formatting instead.
-func (c *Container) JSON(value any) {
+// marshalled are rendered using their Go default formatting instead. When the
+// optional collapsed argument is true the view starts collapsed behind a
+// disclosure toggle in the browser.
+func (c *Container) JSON(value any, collapsed ...bool) {
+	col := len(collapsed) > 0 && collapsed[0]
 	b, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {
-		c.add("json", props{"json": fmt.Sprintf("%v", value)})
+		c.add("json", props{"json": fmt.Sprintf("%v", value), "collapsed": col})
 		return
 	}
-	c.add("json", props{"json": string(b)})
+	c.add("json", props{"json": string(b), "collapsed": col})
 }
 
 // Metric adds a big-number metric with an optional delta indicator. A delta
-// beginning with '-' renders as a negative (downward) change.
+// beginning with '-' renders as a negative (downward) change; the coloring can
+// be flipped or disabled with [Container.MetricColored].
 func (c *Container) Metric(label, value, delta string) {
-	c.add("metric", props{"label": label, "value": value, "delta": delta})
+	c.add("metric", props{"label": label, "value": value, "delta": delta, "deltaColor": "normal"})
+}
+
+// MetricColored is like [Container.Metric] but controls how the delta is
+// coloured. deltaColor is one of "normal" (positive green, negative red),
+// "inverse" (the reverse, useful when lower is better), or "off" (grey).
+func (c *Container) MetricColored(label, value, delta, deltaColor string) {
+	switch deltaColor {
+	case "inverse", "off":
+	default:
+		deltaColor = "normal"
+	}
+	c.add("metric", props{"label": label, "value": value, "delta": delta, "deltaColor": deltaColor})
 }
 
 // Success adds a green success message box.

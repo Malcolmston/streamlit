@@ -124,3 +124,123 @@ func (c *Container) MultiSelect(label string, options []string, key ...string) [
 	c.addWidget(k, "multiselect", props{"label": label, "options": options, "value": filtered})
 	return filtered
 }
+
+// Toggle adds an on/off switch initialised to def and returns its current
+// state. It behaves like [Container.Checkbox] but renders as a sliding toggle.
+func (c *Container) Toggle(label string, def bool, key ...string) bool {
+	k := c.s.key(optKey(key), "toggle")
+	val := asBool(c.s.widgets[k], def)
+	c.addWidget(k, "toggle", props{"label": label, "value": val})
+	return val
+}
+
+// DateInput adds a calendar date field and returns the selected date as an
+// ISO-8601 string ("2006-01-02"). def is the initial value and may be empty.
+func (c *Container) DateInput(label, def string, key ...string) string {
+	k := c.s.key(optKey(key), "date_input")
+	val := asString(c.s.widgets[k], def)
+	c.addWidget(k, "date_input", props{"label": label, "value": val})
+	return val
+}
+
+// TimeInput adds a time-of-day field and returns the selected time as a
+// 24-hour "15:04" string. def is the initial value and may be empty.
+func (c *Container) TimeInput(label, def string, key ...string) string {
+	k := c.s.key(optKey(key), "time_input")
+	val := asString(c.s.widgets[k], def)
+	c.addWidget(k, "time_input", props{"label": label, "value": val})
+	return val
+}
+
+// ColorPicker adds a colour selector and returns the chosen colour as a
+// "#rrggbb" hex string. def is the initial value; an empty def defaults to
+// black ("#000000").
+func (c *Container) ColorPicker(label, def string, key ...string) string {
+	k := c.s.key(optKey(key), "color_picker")
+	if def == "" {
+		def = "#000000"
+	}
+	val := asString(c.s.widgets[k], def)
+	c.addWidget(k, "color_picker", props{"label": label, "value": val})
+	return val
+}
+
+// SelectSlider adds a slider that moves across a set of discrete options and
+// returns the currently selected option. The first option is selected by
+// default. If options is empty the empty string is returned.
+func (c *Container) SelectSlider(label string, options []string, key ...string) string {
+	k := c.s.key(optKey(key), "select_slider")
+	def := ""
+	if len(options) > 0 {
+		def = options[0]
+	}
+	val := asString(c.s.widgets[k], def)
+	if !containsString(options, val) {
+		val = def
+	}
+	idx := 0
+	for i, o := range options {
+		if o == val {
+			idx = i
+			break
+		}
+	}
+	c.addWidget(k, "select_slider", props{
+		"label": label, "options": toAnySlice(options), "value": val, "index": idx,
+	})
+	return val
+}
+
+// Feedback adds a rating control and returns the selected score, or -1 when
+// nothing has been chosen yet. kind selects the style: "stars" yields a 0–4
+// five-star rating and "thumbs" yields a 0 (down) / 1 (up) control. Any other
+// value is treated as "stars".
+func (c *Container) Feedback(kind string, key ...string) int {
+	k := c.s.key(optKey(key), "feedback")
+	if kind != "thumbs" {
+		kind = "stars"
+	}
+	val := asInt(c.s.widgets[k], -1)
+	c.addWidget(k, "feedback", props{"kind": kind, "value": val})
+	return val
+}
+
+// DownloadButton adds a button that downloads data as a file named filename
+// when clicked, and returns true on the single run triggered by the click. The
+// bytes are embedded in the page as a base64 data URI, so this is best suited
+// to modestly sized payloads. The content type is detected from the data.
+func (c *Container) DownloadButton(label, filename string, data []byte, key ...string) bool {
+	k := c.s.key(optKey(key), "download_button")
+	clicked := c.s.clicked[k]
+	c.addWidget(k, "download_button", props{
+		"label": label, "filename": filename, "href": dataURIFromBytes(data),
+	})
+	return clicked
+}
+
+// UploadedFile is a single file received from a [Container.FileUploader]. Data
+// holds the raw bytes uploaded by the browser.
+type UploadedFile struct {
+	// Name is the client-supplied filename.
+	Name string
+	// Size is the length of Data in bytes.
+	Size int
+	// Data is the file's raw content.
+	Data []byte
+}
+
+// FileUploader adds a file selection control and returns the files uploaded for
+// it in the current session. Bytes are received over a multipart POST to
+// /api/upload and held in session state (they are not part of the JSON element
+// tree); only filenames are echoed to the browser. The returned slice is empty
+// until the user uploads at least one file.
+func (c *Container) FileUploader(label string, key ...string) []UploadedFile {
+	k := c.s.key(optKey(key), "file_uploader")
+	files := c.s.uploads[k]
+	names := make([]any, len(files))
+	for i, f := range files {
+		names[i] = f.Name
+	}
+	c.addWidget(k, "file_uploader", props{"label": label, "files": names})
+	return files
+}
