@@ -62,6 +62,12 @@
 // Beyond the basics the package offers a broad surface, each piece backed by
 // per-session state and rendered by the embedded frontend:
 //
+//   - Display and data: [Container.Title], [Container.Header],
+//     [Container.Subheader], [Container.Markdown], [Container.Write],
+//     [Container.Metric], [Container.Code], [Container.JSON],
+//     [Container.Table] and [Container.DataFrame]. Tabular structs and slices
+//     render automatically, and alerts ([Container.Success], [Container.Info],
+//     [Container.Warning], [Container.Error]) draw the callout boxes.
 //   - Widgets: [Container.Button], [Container.Checkbox], [Container.Toggle],
 //     [Container.Slider], [Container.SelectSlider], [Container.NumberInput],
 //     [Container.TextInput], [Container.TextArea], [Container.SelectBox],
@@ -82,7 +88,7 @@
 //     [Container.Histogram].
 //   - Caching: [Session.Cache] memoises an expensive computation process-wide,
 //     across reruns and sessions, with an optional TTL — the analogue of
-//     st.cache_data.
+//     st.cache_data. [CacheClear] evicts every cached entry.
 //
 // # Deferred features
 //
