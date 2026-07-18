@@ -131,9 +131,24 @@ func (s *Session) reset() {
 // run following its click.
 func (s *Session) run(app func(*Session)) *Element {
 	s.reset()
-	app(s)
+	s.runApp(app)
 	s.clicked = map[string]bool{}
 	return s.rootEl
+}
+
+// runApp invokes the app function, recovering the sentinel panicked by
+// [Session.Stop] so that halting a run mid-way is clean rather than fatal. Any
+// other panic is re-raised unchanged.
+func (s *Session) runApp(app func(*Session)) {
+	defer func() {
+		if r := recover(); r != nil {
+			if _, ok := r.(stopSignal); ok {
+				return
+			}
+			panic(r)
+		}
+	}()
+	app(s)
 }
 
 // key resolves the stable identity for a widget. A caller-supplied key is used

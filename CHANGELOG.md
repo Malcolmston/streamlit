@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-18
+### Added
+- Display & effects (closer to Streamlit's `st` surface): `Latex`, `Html`,
+  `Badge`, `Exception`, `Echo`, `Toast`, `Balloons`, `Snow`, `LinkButton`,
+  `PageLink`, and `Help`.
+- Widgets: `Pills` and `SegmentedControl` (chip selectors), `PrimaryButton`,
+  `PasswordInput`, `TextInputMax` (server-side max-length), `NumberInputRange`
+  (bounded/clamped numeric entry), `SliderRange` and `SelectSliderRange`
+  (two-handle range selectors), `DateRangeInput`, and the media-capture inputs
+  `CameraInput` and `AudioInput` (reuse the existing `/api/upload` endpoint).
+- Control & layout: `Session.Stop` (halts the current run like `st.stop`, via a
+  recovered sentinel), `Session.SetPageConfig` (page title/icon, like
+  `st.set_page_config`), and `Container.BorderedContainer`
+  (`st.container(border=True)`).
+- Tests: deterministic known-answer table tests for every new symbol, plus a
+  `SliderRange` benchmark.
+
 ## [0.2.0] - 2026-07-12
 ### Added
 - Widgets: `Toggle`, `SelectSlider`, `DateInput`, `TimeInput`, `ColorPicker`,
@@ -48,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI: gofmt · vet · build gate a `-race` + coverage run, plus golangci-lint v2,
   govulncheck, cross-compile, dependency review, and VERSION-driven releases.
 
-[Unreleased]: https://github.com/malcolmston/streamlit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/malcolmston/streamlit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/malcolmston/streamlit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/malcolmston/streamlit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/malcolmston/streamlit/releases/tag/v0.1.0
