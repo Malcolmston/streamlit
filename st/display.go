@@ -3,6 +3,7 @@ package st
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Container is a region of the page into which elements are appended. The root
@@ -74,20 +75,75 @@ func (c *Container) JSON(value any, collapsed ...bool) {
 // Metric adds a big-number metric with an optional delta indicator. A delta
 // beginning with '-' renders as a negative (downward) change; the coloring can
 // be flipped or disabled with [Container.MetricColored].
+//
+// Alongside the raw delta text, the resolved arrow direction ("up", "down" or
+// "none") and delta colour ("green", "red" or "grey") are attached to the
+// element, matching how Streamlit's st.metric derives them; see
+// [Container.MetricColored] for the exact rules.
 func (c *Container) Metric(label, value, delta string) {
-	c.add("metric", props{"label": label, "value": value, "delta": delta, "deltaColor": "normal"})
+	c.MetricColored(label, value, delta, "normal")
 }
 
 // MetricColored is like [Container.Metric] but controls how the delta is
 // coloured. deltaColor is one of "normal" (positive green, negative red),
 // "inverse" (the reverse, useful when lower is better), or "off" (grey).
+//
+// The element records the resolved "color" ("green", "red" or "grey") and
+// "direction" ("up", "down" or "none") in addition to the raw delta text and
+// deltaColor mode, mirroring Streamlit's st.metric. See [metricDeltaSignal] for
+// how the sign of the delta text is interpreted.
 func (c *Container) MetricColored(label, value, delta, deltaColor string) {
 	switch deltaColor {
 	case "inverse", "off":
 	default:
 		deltaColor = "normal"
 	}
-	c.add("metric", props{"label": label, "value": value, "delta": delta, "deltaColor": deltaColor})
+	color, direction := metricDeltaSignal(delta, deltaColor)
+	c.add("metric", props{
+		"label": label, "value": value, "delta": delta,
+		"deltaColor": deltaColor, "color": color, "direction": direction,
+	})
+}
+
+// metricDeltaSignal computes the delta colour and arrow direction Streamlit
+// assigns to a metric, mirroring st.metric. delta is the raw delta text and
+// mode is one of "normal", "inverse" or "off". It returns colour ("green",
+// "red" or "grey") and direction ("up", "down" or "none").
+//
+// The sign is read from the delta as opaque display text: the empty string and
+// the literal "0" (after trimming surrounding whitespace) are neutral, a
+// leading '-' is negative, and anything else is positive. This matches
+// Streamlit's string-delta handling, so "0.0", "+0" and "0%" read as positive
+// while "-0" reads as negative. In "normal" mode a positive delta is green and
+// a negative delta red; "inverse" swaps them; "off" is always grey. A neutral
+// delta is always grey with the "none" direction.
+func metricDeltaSignal(delta, mode string) (color, direction string) {
+	s := strings.TrimSpace(delta)
+	switch {
+	case s == "" || s == "0":
+		return "grey", "none"
+	case strings.HasPrefix(s, "-"):
+		direction = "down"
+	default:
+		direction = "up"
+	}
+	switch mode {
+	case "off":
+		color = "grey"
+	case "inverse":
+		if direction == "down" {
+			color = "green"
+		} else {
+			color = "red"
+		}
+	default: // "normal"
+		if direction == "down" {
+			color = "red"
+		} else {
+			color = "green"
+		}
+	}
+	return color, direction
 }
 
 // Success adds a green success message box.
@@ -108,7 +164,11 @@ func (c *Container) Error(text string) { c.add("alert", props{"kind": "error", "
 // animating during it.
 func (c *Container) Spinner(label string) { c.add("spinner", props{"label": label}) }
 
-// Progress adds a progress bar. value is clamped to the range [0, 1].
+// Progress adds a progress bar. value is a fraction in the range [0, 1] and is
+// clamped to that range. Alongside the clamped fraction the element records an
+// integer "percent" in [0, 100] computed as int(value*100), matching the
+// 0–100 completion value Streamlit's st.progress reports.
 func (c *Container) Progress(value float64) {
-	c.add("progress", props{"value": clampFloat(value, 0, 1)})
+	v := clampFloat(value, 0, 1)
+	c.add("progress", props{"value": v, "percent": int(v * 100)})
 }

@@ -1,0 +1,10 @@
+{
+  "repo": "streamlit",
+  "upstream": "streamlit/streamlit",
+  "parityBefore": "76%",
+  "parityAfter": "93%",
+  "upstreamCasesSynced": 31,
+  "gapsFound": 3,
+  "gapsClosed": 3,
+  "asOf": "2026-07-18"
+}
