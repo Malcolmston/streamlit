@@ -32,10 +32,19 @@ func (c *Container) Checkbox(label string, def bool, key ...string) bool {
 
 // Slider adds a numeric slider bounded by min and max, initialised to def, and
 // returns its current value. step controls the increment; if step is zero a
-// sensible default of (max-min)/100 is used. The returned value is clamped to
-// the slider's range.
+// sensible default of (max-min)/100 is used.
+//
+// If min and max are supplied out of order they are swapped. When the current
+// value falls outside [min, max] the bounds are widened to include it rather
+// than the value being clamped, matching Streamlit's st.slider — which adjusts
+// the range to fit an out-of-range default instead of moving the value. As a
+// result the returned value is always exactly the resolved value, and min/max
+// on the element may differ from the arguments.
 func (c *Container) Slider(label string, min, max, def, step float64, key ...string) float64 {
 	k := c.s.key(optKey(key), "slider")
+	if min > max {
+		min, max = max, min
+	}
 	if step <= 0 {
 		if max > min {
 			step = (max - min) / 100
@@ -43,7 +52,15 @@ func (c *Container) Slider(label string, min, max, def, step float64, key ...str
 			step = 1
 		}
 	}
-	val := clampFloat(asFloat(c.s.widgets[k], def), min, max)
+	val := asFloat(c.s.widgets[k], def)
+	// Widen the range to include the value instead of clamping the value,
+	// mirroring Streamlit's behaviour for out-of-range defaults.
+	if val < min {
+		min = val
+	}
+	if val > max {
+		max = val
+	}
 	c.addWidget(k, "slider", props{
 		"label": label, "min": min, "max": max, "value": val, "step": step,
 	})
