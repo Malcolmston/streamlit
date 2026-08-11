@@ -38,9 +38,16 @@ func (c *Container) add(typ string, p props) *Element {
 
 // addWidget appends a keyed widget Element, recording its key in Props so the
 // frontend can echo it back on interaction.
+//
+// The key is also recorded as rendered-this-run, which is what lets the session
+// discard state for widgets that a later run no longer draws (see
+// pruneStaleWidgets in session.go).
 func (c *Container) addWidget(key, typ string, p props) *Element {
 	if p == nil {
 		p = props{}
+	}
+	if c.s != nil && c.s.seen != nil {
+		c.s.seen[key] = struct{}{}
 	}
 	// Widgets appended inside a form carry the form's key so the frontend can
 	// stage their changes and only commit them on submission.

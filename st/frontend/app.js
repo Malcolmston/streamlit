@@ -27,11 +27,31 @@ async function run(event) {
   }
 }
 
+// applyPageConfig honours st.SetPageConfig, which the server attaches to the
+// root element's props. The icon is rendered into an SVG data URI so an emoji
+// works as a favicon without shipping an image.
+function applyPageConfig(root) {
+  const p = (root && root.props) || {};
+  if (p.pageTitle) document.title = String(p.pageTitle);
+  if (!p.pageIcon) return;
+  let link = document.querySelector("link[rel='icon']");
+  if (!link) {
+    link = document.createElement("link");
+    link.rel = "icon";
+    document.head.appendChild(link);
+  }
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">' +
+    '<text y="26" font-size="26">' + escapeHTML(String(p.pageIcon)) + "</text></svg>";
+  link.href = "data:image/svg+xml," + encodeURIComponent(svg);
+}
+
 function renderTree(root) {
   const sidebar = document.getElementById("sidebar");
   const main = document.getElementById("main");
   sidebar.innerHTML = "";
   main.innerHTML = "";
+  applyPageConfig(root);
   if (!root || !root.children) return;
   for (const child of root.children) {
     if (child.type === "sidebar") renderInto(sidebar, child.children || []);
@@ -51,17 +71,126 @@ function el(tag, cls, text) {
 }
 
 // A tiny, safe Markdown subset: escaping first, then inline formatting.
+//
+// escapeHTML also escapes quotes. That matters because the markdown renderer
+// interpolates user text into an href attribute: without escaping `"` a link
+// target such as `[x](" onmouseover="alert(1))` would break out of the
+// attribute and inject an event handler.
 function escapeHTML(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
-function markdown(s) {
-  let h = escapeHTML(s);
+
+// Schemes that may appear in a link target. This is an *allowlist*: anything
+// not named here (javascript:, data:, vbscript:, blob:, and every scheme that
+// has not been invented yet) is rejected. A denylist would be defeated by the
+// next scheme someone thinks of.
+const LINK_SCHEMES = ["http", "https", "mailto", "tel", "ftp", "ftps", "sms"];
+// Media elements additionally accept inline payloads, which is how the server
+// ships images/audio/video encoded by dataURIFromBytes.
+const MEDIA_SCHEMES = LINK_SCHEMES.concat(["data", "blob"]);
+
+// A URL carries an explicit scheme when it starts with one per RFC 3986:
+// ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ) ":". Anything else is relative.
+const SCHEME_RE = /^([a-zA-Z][a-zA-Z0-9+.-]*):/;
+
+// safeURL normalises an untrusted URL and returns it only when its scheme is
+// allowed; otherwise it returns "#". Scheme-less (relative, fragment,
+// protocol-relative) URLs are allowed as-is.
+//
+// Before inspecting the scheme every C0 control character and space is
+// removed, because browsers strip TAB/LF/CR while parsing a URL: without this
+// step "java\tscript:alert(1)" would be classified as a relative URL and then
+// executed by the browser as javascript:.
+function safeURL(raw, schemes) {
+  const allowed = schemes || LINK_SCHEMES;
+  const s = String(raw == null ? "" : raw).replace(/[\u0000-\u0020\u007f]/g, "");
+  if (s === "") return "#";
+  const m = SCHEME_RE.exec(s);
+  if (!m) return s; // relative / fragment / protocol-relative
+  return allowed.indexOf(m[1].toLowerCase()) === -1 ? "#" : s;
+}
+
+// attrEscape makes a value safe to place inside a double-quoted attribute.
+//
+// It deliberately leaves "&" alone. On the escaped path the value has already
+// been through escapeHTML, so its ampersands are "&amp;" and escaping again
+// would turn a perfectly good "?a=1&b=2" into "?a=1&amp;amp;b=2" — the browser
+// would then request a URL containing a literal "&amp;".
+function attrEscape(s) {
+  return String(s == null ? "" : s)
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// LINK_RE matches [text](target), allowing one level of nested parentheses in
+// the target so that URLs like https://en.wikipedia.org/wiki/Go_(language) and
+// javascript:alert(1) are both captured whole.
+const LINK_RE = /\[([^\]]*)\]\(((?:[^()]|\([^()]*\))*)\)/g;
+
+// mdInline applies inline formatting to text that has ALREADY been escaped
+// (or that the caller has explicitly opted out of escaping).
+function mdInline(h) {
+  h = h.replace(/`([^`]+)`/g, '<code class="inline">$1</code>');
   h = h.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   h = h.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  h = h.replace(/`([^`]+)`/g, '<code class="inline">$1</code>');
-  h = h.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" rel="noopener">$1</a>');
-  h = h.replace(/\n/g, "<br>");
+  h = h.replace(LINK_RE, (_m, text, url) =>
+    '<a href="' + attrEscape(safeURL(url)) + '" rel="noopener noreferrer">' + text + "</a>");
   return h;
+}
+
+// markdown renders the supported subset: ATX headings, unordered lists,
+// paragraphs, bold, italics, inline code and links.
+//
+// allowHTML mirrors Streamlit's unsafe_allow_html and is OFF unless a caller
+// explicitly opts in (st.Html / st.MarkdownUnsafe on the Go side). With it off,
+// every character of the source is escaped before any transform runs.
+function markdown(s, allowHTML) {
+  const src = allowHTML ? String(s == null ? "" : s) : escapeHTML(s);
+  const lines = src.split("\n");
+  const out = [];
+  let para = [];
+  let list = null;
+
+  const flushPara = () => {
+    if (para.length) {
+      out.push("<p>" + mdInline(para.join("<br>")) + "</p>");
+      para = [];
+    }
+  };
+  const flushList = () => {
+    if (list) {
+      out.push("<ul>" + list.map((i) => "<li>" + mdInline(i) + "</li>").join("") + "</ul>");
+      list = null;
+    }
+  };
+
+  for (const line of lines) {
+    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+    const item = /^\s*[-*+]\s+(.*)$/.exec(line);
+    if (heading) {
+      flushPara(); flushList();
+      const level = heading[1].length;
+      out.push("<h" + level + ">" + mdInline(heading[2]) + "</h" + level + ">");
+    } else if (item) {
+      flushPara();
+      (list = list || []).push(item[1]);
+    } else if (line.trim() === "") {
+      flushPara(); flushList();
+    } else {
+      flushList();
+      para.push(line);
+    }
+  }
+  flushPara();
+  flushList();
+  return out.join("");
 }
 
 function fire(key, value, button) {
@@ -116,7 +245,17 @@ function renderElement(e) {
     case "subheader": return el("h3", "st", p.text);
     case "text": return el("div", "st-text", p.text);
     case "caption": { const n = el("div", "st-caption"); n.innerHTML = markdown(p.text || ""); return n; }
-    case "markdown": { const n = el("div", "st-markdown"); n.innerHTML = "<p>" + markdown(p.text || "") + "</p>"; return n; }
+    case "markdown": { const n = el("div", "st-markdown"); n.innerHTML = markdown(p.text || "", !!p.unsafeAllowHTML); return n; }
+    case "html": { const n = el("div", "st-html"); n.innerHTML = p.html || ""; return n; }
+    case "latex": return el("div", "st-latex", p.expr || "");
+    case "badge": return el("span", "st-badge " + (p.color || "blue"), p.label);
+    case "echo": { const pre = el("pre", "st-code st-echo"); pre.appendChild(el("code", null, p.code)); return pre; }
+    case "exception": return renderException(p);
+    case "help": return renderHelp(p);
+    case "toast": return renderToast(p);
+    case "effect": return renderEffect(p);
+    case "link_button": return renderLinkButton(p);
+    case "page_link": return renderPageLink(p);
     case "divider": return el("hr", "st");
     case "code": { const pre = el("pre", "st-code"); pre.appendChild(el("code", null, p.code)); return pre; }
     case "json": return renderJSON(p);
@@ -128,8 +267,14 @@ function renderElement(e) {
     case "chart": { const n = el("div", "st-chart"); n.innerHTML = p.svg || ""; return n; }
     case "map": { const n = el("div", "st-map st-chart"); n.innerHTML = p.svg || ""; return n; }
     case "columns": return renderColumns(e);
-    case "column": { const n = el("div", "st-column"); renderInto(n, e.children || []); return n; }
-    case "container": { const n = el("div", "st-container"); renderInto(n, e.children || []); return n; }
+    case "column": {
+      const n = el("div", "st-column");
+      const w = typeof p.weight === "number" && p.weight > 0 ? p.weight : 1;
+      n.style.flexGrow = String(w);
+      renderInto(n, e.children || []);
+      return n;
+    }
+    case "container": { const n = el("div", "st-container" + (p.border ? " bordered" : "")); renderInto(n, e.children || []); return n; }
     case "empty": { const n = el("div", "st-empty"); renderInto(n, e.children || []); return n; }
     case "expander": return renderExpander(e);
     case "tabs": return renderTabs(e);
@@ -138,9 +283,9 @@ function renderElement(e) {
     case "form": { const n = el("div", "st-form"); renderInto(n, e.children || []); return n; }
     // media
     case "image": return renderImage(p);
-    case "logo": { const img = el("img", "st-logo"); img.src = p.src || ""; img.alt = "logo"; return img; }
-    case "audio": { const a = document.createElement("audio"); a.controls = true; a.src = p.src || ""; a.className = "st-audio"; return a; }
-    case "video": { const v = document.createElement("video"); v.controls = true; v.src = p.src || ""; v.className = "st-video"; return v; }
+    case "logo": { const img = el("img", "st-logo"); img.src = mediaURL(p.src); img.alt = "logo"; return img; }
+    case "audio": { const a = document.createElement("audio"); a.controls = true; a.src = mediaURL(p.src); a.className = "st-audio"; return a; }
+    case "video": { const v = document.createElement("video"); v.controls = true; v.src = mediaURL(p.src); v.className = "st-video"; return v; }
     // chat
     case "chat_message": return renderChatMessage(e);
     case "chat_input": return renderChatInput(e);
@@ -162,7 +307,14 @@ function renderElement(e) {
     case "feedback": return renderFeedback(e);
     case "download_button": return renderDownloadButton(e);
     case "file_uploader": return renderFileUploader(e);
+    case "camera_input": return renderCapture(e, "camera");
+    case "audio_input": return renderCapture(e, "microphone");
     case "form_submit": return renderFormSubmit(e);
+    case "pills": return renderChips(e, true);
+    case "segmented_control": return renderChips(e, false);
+    case "slider_range": return renderSliderRange(e);
+    case "select_slider_range": return renderSelectSliderRange(e);
+    case "date_range_input": return renderDateRange(e);
     default: return el("div", null, "[" + e.type + "]");
   }
 }
@@ -371,10 +523,189 @@ function renderJSON(p) {
   return el("pre", "st-json", p.json);
 }
 
+// mediaURL is safeURL with the media scheme allowlist (adds data: and blob:).
+function mediaURL(raw) {
+  const u = safeURL(raw, MEDIA_SCHEMES);
+  return u === "#" ? "" : u;
+}
+
+function renderException(p) {
+  const n = el("div", "st-exception");
+  if (p.type) n.appendChild(el("div", "type", p.type));
+  n.appendChild(el("div", "message", p.message || ""));
+  return n;
+}
+
+function renderHelp(p) {
+  const d = el("details", "st-help");
+  d.appendChild(el("summary", null, p.type || "value"));
+  d.appendChild(el("pre", "st-json", p.value || ""));
+  return d;
+}
+
+// Toasts are transient: they slide in and remove themselves. The element left
+// behind in the tree is a zero-height anchor so layout is unaffected.
+function renderToast(p) {
+  const anchor = el("div", "st-toast-anchor");
+  const t = el("div", "st-toast", ((p.icon ? p.icon + " " : "") + (p.message || "")));
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 4000);
+  return anchor;
+}
+
+// Effects (balloons/snow) float a handful of glyphs up or down the viewport.
+function renderEffect(p) {
+  const anchor = el("div", "st-effect-anchor");
+  const glyph = p.kind === "snow" ? "❄️" : "🎈";
+  const layer = el("div", "st-effect-layer " + (p.kind || "balloons"));
+  for (let i = 0; i < 16; i++) {
+    const g = el("span", "st-effect-glyph", glyph);
+    g.style.left = Math.round((i + 0.5) * (100 / 16)) + "%";
+    g.style.animationDelay = (i % 8) * 0.12 + "s";
+    layer.appendChild(g);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 4000);
+  return anchor;
+}
+
+function renderLinkButton(p) {
+  const a = document.createElement("a");
+  a.className = "st st-link-button";
+  a.textContent = p.label || "";
+  a.href = safeURL(p.url);
+  a.rel = "noopener noreferrer";
+  return widgetWrap("st-link-button-wrap", null, a);
+}
+
+function renderPageLink(p) {
+  const a = document.createElement("a");
+  a.className = "st-page-link";
+  a.textContent = p.label || p.url || "";
+  a.href = safeURL(p.url);
+  a.rel = "noopener noreferrer";
+  const n = el("div", "st-widget st-page-link-wrap");
+  n.appendChild(a);
+  return n;
+}
+
+// renderChips draws st.pills (multi) and st.segmented_control (single).
+function renderChips(e, multi) {
+  const p = e.props || {};
+  const n = el("div", "st-widget " + (multi ? "st-pills" : "st-segmented"));
+  if (p.label) n.appendChild(el("label", null, p.label));
+  const row = el("div", "st-chip-row");
+  const chosen = multi ? new Set(p.value || []) : null;
+  for (const opt of p.options || []) {
+    const on = multi ? chosen.has(opt) : opt === p.value;
+    const b = el("button", "st-chip" + (on ? " active" : ""), opt);
+    b.onclick = () => {
+      if (!multi) { commit(e, opt); return; }
+      const next = new Set(chosen);
+      if (next.has(opt)) next.delete(opt); else next.add(opt);
+      commit(e, (p.options || []).filter((o) => next.has(o)));
+    };
+    row.appendChild(b);
+  }
+  n.appendChild(row);
+  return n;
+}
+
+// renderSliderRange draws two overlaid range inputs; the low handle can never
+// cross above the high handle.
+function renderSliderRange(e) {
+  const p = e.props || {};
+  const cur = p.value || [p.min, p.max];
+  const n = el("div", "st-widget st-slider-range");
+  if (p.label) n.appendChild(el("label", null, p.label));
+  const lo = document.createElement("input");
+  const hi = document.createElement("input");
+  for (const r of [lo, hi]) {
+    r.type = "range";
+    r.min = p.min; r.max = p.max; r.step = p.step;
+  }
+  lo.value = cur[0]; hi.value = cur[1];
+  const out = el("span", "st-range-value", cur[0] + " – " + cur[1]);
+  const sync = (commitIt) => {
+    let a = parseFloat(lo.value), b = parseFloat(hi.value);
+    if (a > b) { const t = a; a = b; b = t; lo.value = a; hi.value = b; }
+    out.textContent = a + " – " + b;
+    if (commitIt) commit(e, [a, b]);
+  };
+  lo.oninput = hi.oninput = () => sync(false);
+  lo.onchange = hi.onchange = () => sync(true);
+  n.appendChild(lo);
+  n.appendChild(hi);
+  n.appendChild(out);
+  return n;
+}
+
+function renderSelectSliderRange(e) {
+  const p = e.props || {};
+  const opts = p.options || [];
+  const n = el("div", "st-widget st-select-slider-range");
+  if (p.label) n.appendChild(el("label", null, p.label));
+  const lo = document.createElement("input");
+  const hi = document.createElement("input");
+  for (const r of [lo, hi]) {
+    r.type = "range";
+    r.min = 0; r.max = Math.max(0, opts.length - 1); r.step = 1;
+  }
+  lo.value = p.indexLow || 0;
+  hi.value = typeof p.indexHigh === "number" ? p.indexHigh : Math.max(0, opts.length - 1);
+  const out = el("span", "st-range-value", String(opts[lo.value]) + " – " + String(opts[hi.value]));
+  const sync = (commitIt) => {
+    let a = parseInt(lo.value, 10), b = parseInt(hi.value, 10);
+    if (a > b) { const t = a; a = b; b = t; lo.value = a; hi.value = b; }
+    out.textContent = String(opts[a]) + " – " + String(opts[b]);
+    if (commitIt) commit(e, [opts[a], opts[b]]);
+  };
+  lo.oninput = hi.oninput = () => sync(false);
+  lo.onchange = hi.onchange = () => sync(true);
+  n.appendChild(lo);
+  n.appendChild(hi);
+  n.appendChild(out);
+  return n;
+}
+
+function renderDateRange(e) {
+  const p = e.props || {};
+  const cur = p.value || ["", ""];
+  const n = el("div", "st-widget st-date-range");
+  if (p.label) n.appendChild(el("label", null, p.label));
+  const from = document.createElement("input");
+  const to = document.createElement("input");
+  from.type = to.type = "date";
+  from.value = cur[0] || ""; to.value = cur[1] || "";
+  from.onchange = to.onchange = () => commit(e, [from.value, to.value]);
+  n.appendChild(from);
+  n.appendChild(el("span", "st-range-sep", " – "));
+  n.appendChild(to);
+  return n;
+}
+
+// renderCapture backs st.camera_input / st.audio_input. Both post to the same
+// multipart endpoint as the file uploader; `capture` hints the device to use.
+function renderCapture(e, device) {
+  const p = e.props || {};
+  const inp = document.createElement("input");
+  inp.type = "file";
+  inp.accept = device === "camera" ? "image/*" : "audio/*";
+  inp.capture = device === "camera" ? "environment" : "user";
+  inp.onchange = () => uploadFiles(e.key, inp.files);
+  const wrap = widgetWrap("st-" + device + "-input", p.label, inp);
+  if (p.files && p.files.length) {
+    const list = el("ul", "st-file-list");
+    for (const name of p.files) list.appendChild(el("li", null, name));
+    wrap.appendChild(list);
+  }
+  return wrap;
+}
+
 function renderImage(p) {
   const fig = el("figure", "st-image");
   const img = el("img");
-  img.src = p.src || "";
+  img.src = mediaURL(p.src);
   img.alt = p.caption || "image";
   fig.appendChild(img);
   if (p.caption) fig.appendChild(el("figcaption", "st-caption", p.caption));
@@ -552,7 +883,7 @@ function renderDownloadButton(e) {
   const a = document.createElement("a");
   a.className = "st st-download";
   a.textContent = p.label || "Download";
-  a.href = p.href || "#";
+  a.href = mediaURL(p.href) || "#";
   a.download = p.filename || "download";
   a.onclick = () => fire(e.key, true, true);
   return widgetWrap("st-download-button", null, a);

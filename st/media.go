@@ -99,6 +99,11 @@ func renderMap(points []MapPoint, width, height int) string {
 	fmt.Fprintf(&b, `<line x1="%d" y1="0" x2="%d" y2="%d" stroke="#dbe4ee"/>`, midX, midX, height)
 
 	for _, pt := range points {
+		// A NaN coordinate would survive the clamp (math.Min(90, NaN) is NaN)
+		// and emit cx="NaN", which browsers drop; skip it instead.
+		if !finite(pt.Lat) || !finite(pt.Lng) {
+			continue
+		}
 		lat := math.Max(-90, math.Min(90, pt.Lat))
 		lng := math.Max(-180, math.Min(180, pt.Lng))
 		x := (lng + 180) / 360 * float64(width)

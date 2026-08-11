@@ -10,6 +10,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"math"
 	"strconv"
@@ -79,7 +80,7 @@ func app(s *st.Session) {
 	// New in 0.2.0: tabs grouping more charts and widgets.
 	s.Divider()
 	s.Header("More components")
-	tabs := s.Tabs([]string{"Charts", "Widgets", "Form", "Chat"})
+	tabs := s.Tabs([]string{"Charts", "Widgets", "Form", "Chat", "Extras"})
 
 	// Charts tab: scatter, pie, histogram, all server-side SVG.
 	xs, ys := scatterData(series)
@@ -128,6 +129,81 @@ func app(s *st.Session) {
 			chatMsg{"assistant", "You said: _" + msg + "_"})
 		s.State.Set("history", history)
 	}
+
+	extras(s, tabs[4], series)
+}
+
+// extras exercises the widgets, effects and layout helpers that round out the
+// port's parity with Streamlit: chip selectors, range sliders, weighted
+// columns, badges, link buttons, LaTeX, toasts and the one-shot animations.
+func extras(s *st.Session, t *st.Container, series []float64) {
+	t.Subheader("Chips and ranges")
+
+	// st.pills / st.segmented_control.
+	langs := t.Pills("Languages you use", []string{"Go", "Python", "Rust", "TypeScript"})
+	mode := t.SegmentedControl("View", []string{"Compact", "Comfortable", "Spacious"})
+	t.Write("Selected " + itoa(len(langs)) + " language(s); view is **" + mode + "**.")
+
+	// st.slider with a tuple default, and st.select_slider with a tuple.
+	lo, hi := t.SliderRange("Value window", -10, 10, -3, 6, 0.5)
+	from, to := t.SelectSliderRange("Size range", []string{"XS", "S", "M", "L", "XL"})
+	t.Caption("Window " + ftoa(lo) + " to " + ftoa(hi) + "; sizes " + from + "–" + to)
+
+	// Values in the window, plotted in a 3:1 split (st.columns([3, 1])).
+	inWindow := filterRange(series, lo, hi)
+	cols := t.ColumnsWeighted([]float64{3, 1})
+	cols[0].AreaChart(inWindow)
+	cols[1].Metric("In window", itoa(len(inWindow)), "")
+
+	// st.date_input with a tuple default.
+	start, end := t.DateRangeInput("Reporting period", "2026-01-01", "2026-03-31")
+	t.Caption("Period: " + start + " → " + end)
+
+	t.Divider()
+	t.Subheader("Labels, links and maths")
+	t.Badge("stable", "green")
+	t.Badge("std-lib only", "violet")
+	t.LinkButton("Streamlit docs", "https://docs.streamlit.io")
+	t.PageLink("https://pkg.go.dev/github.com/malcolmston/streamlit/st", "API reference")
+	t.Latex(`f(x) = A\sin(2\pi x)`)
+
+	// st.markdown is safe by default: this renders as literal text, not a tag.
+	t.Markdown("User-supplied text is escaped: `<b>not bold</b>`")
+
+	t.Divider()
+	t.Subheader("Status and effects")
+	if t.Button("Celebrate") {
+		t.Toast("Nice one!", "🎉")
+		t.Balloons()
+	}
+	if t.Button("Let it snow") {
+		t.Snow()
+	}
+	t.Exception(errDemo)
+	t.Help(struct {
+		Points int
+		Peak   float64
+	}{len(series), peak(series)})
+
+	// st.rerun: flip a mode and repaint the whole page immediately.
+	if t.Button("Reset the counter and rerun") {
+		s.State.Set("count", 0)
+		s.Rerun()
+	}
+}
+
+// errDemo is a stand-in error for the st.exception demonstration.
+var errDemo = errors.New("something went wrong (this is a demo)")
+
+// filterRange returns the values of xs that fall inside [lo, hi].
+func filterRange(xs []float64, lo, hi float64) []float64 {
+	out := make([]float64, 0, len(xs))
+	for _, x := range xs {
+		if x >= lo && x <= hi {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // chatMsg is a single stored chat turn.

@@ -12,10 +12,39 @@ func (c *Container) Columns(n int) []*Container {
 	if n < 1 {
 		n = 1
 	}
+	return c.columns(make([]float64, n))
+}
+
+// ColumnsWeighted splits the current region into columns whose widths are
+// proportional to weights, mirroring Streamlit's st.columns([2, 1]) — which
+// takes a list of relative widths rather than a count.
+//
+// Non-positive and non-finite weights are treated as 1 so a stray zero cannot
+// collapse a column to nothing. An empty weights slice yields a single
+// full-width column.
+//
+//	cols := s.ColumnsWeighted([]float64{3, 1})
+//	cols[0].LineChart(series) // three quarters of the width
+//	cols[1].Metric("Peak", "42", "")
+func (c *Container) ColumnsWeighted(weights []float64) []*Container {
+	if len(weights) == 0 {
+		weights = []float64{1}
+	}
+	return c.columns(weights)
+}
+
+// columns is the shared implementation of Columns and ColumnsWeighted. A
+// non-positive or non-finite weight renders as an equal share.
+func (c *Container) columns(weights []float64) []*Container {
+	n := len(weights)
 	row := c.add("columns", props{"n": n})
 	cols := make([]*Container, n)
 	for i := range cols {
-		col := &Element{Type: "column"}
+		w := weights[i]
+		if !finite(w) || w <= 0 {
+			w = 1
+		}
+		col := &Element{Type: "column", Props: map[string]any{"weight": w}}
 		row.Children = append(row.Children, col)
 		cols[i] = c.child(col)
 	}

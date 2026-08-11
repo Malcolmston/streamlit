@@ -6,6 +6,13 @@ import (
 	"strings"
 )
 
+// finite reports whether v is a real, plottable number. NaN and ±Inf are
+// filtered out of every chart path: without the guard a single NaN in a series
+// poisons the shared min/max scan (math.Min(NaN, x) is NaN), and every
+// coordinate in the emitted SVG becomes the literal text "NaN", which browsers
+// discard — one bad sample would blank the whole chart rather than skip a point.
+func finite(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) }
+
 // chartPalette provides distinguishable series colours.
 var chartPalette = []string{
 	"#4c78a8", "#f58518", "#54a24b", "#e45756",
@@ -65,16 +72,27 @@ func histogramCounts(data []float64, bins int) []float64 {
 		return counts
 	}
 	minV, maxV := math.Inf(1), math.Inf(-1)
+	n := 0
 	for _, v := range data {
+		if !finite(v) {
+			continue
+		}
+		n++
 		minV = math.Min(minV, v)
 		maxV = math.Max(maxV, v)
 	}
+	if n == 0 {
+		return counts
+	}
 	if maxV == minV {
-		counts[0] = float64(len(data))
+		counts[0] = float64(n)
 		return counts
 	}
 	width := (maxV - minV) / float64(bins)
 	for _, v := range data {
+		if !finite(v) {
+			continue
+		}
 		idx := int((v - minV) / width)
 		if idx >= bins {
 			idx = bins - 1
@@ -102,6 +120,13 @@ func renderScatter(xs, ys []float64, width, height int) string {
 	if len(ys) < n {
 		n = len(ys)
 	}
+	// Only pairs with two finite coordinates are plottable.
+	pairs := make([][2]float64, 0, n)
+	for i := 0; i < n; i++ {
+		if finite(xs[i]) && finite(ys[i]) {
+			pairs = append(pairs, [2]float64{xs[i], ys[i]})
+		}
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img">`,
@@ -109,16 +134,16 @@ func renderScatter(xs, ys []float64, width, height int) string {
 	fmt.Fprintf(&b, `<rect x="%d" y="%d" width="%.0f" height="%.0f" fill="none" stroke="#e0e0e0"/>`,
 		padL, padT, plotW, plotH)
 
-	if n == 0 {
+	if len(pairs) == 0 {
 		b.WriteString(`<text x="50%" y="50%" text-anchor="middle" fill="#999" font-family="sans-serif" font-size="12">no data</text></svg>`)
 		return b.String()
 	}
 
 	minX, maxX := math.Inf(1), math.Inf(-1)
 	minY, maxY := math.Inf(1), math.Inf(-1)
-	for i := 0; i < n; i++ {
-		minX, maxX = math.Min(minX, xs[i]), math.Max(maxX, xs[i])
-		minY, maxY = math.Min(minY, ys[i]), math.Max(maxY, ys[i])
+	for _, pt := range pairs {
+		minX, maxX = math.Min(minX, pt[0]), math.Max(maxX, pt[0])
+		minY, maxY = math.Min(minY, pt[1]), math.Max(maxY, pt[1])
 	}
 	if maxX == minX {
 		maxX = minX + 1
@@ -129,9 +154,9 @@ func renderScatter(xs, ys []float64, width, height int) string {
 	xAt := func(v float64) float64 { return float64(padL) + plotW*(v-minX)/(maxX-minX) }
 	yAt := func(v float64) float64 { return float64(padT) + plotH*(1-(v-minY)/(maxY-minY)) }
 
-	for i := 0; i < n; i++ {
+	for _, pt := range pairs {
 		fmt.Fprintf(&b, `<circle cx="%.1f" cy="%.1f" r="3.5" fill="%s" fill-opacity="0.7"/>`,
-			xAt(xs[i]), yAt(ys[i]), chartPalette[0])
+			xAt(pt[0]), yAt(pt[1]), chartPalette[0])
 	}
 	fmt.Fprintf(&b, `<text x="%d" y="%.1f" text-anchor="end" fill="#666" font-family="sans-serif" font-size="10">%s</text>`,
 		padL-4, float64(padT)+8, trimNum(maxY))
@@ -149,7 +174,7 @@ func renderPie(values []float64, labels []string, width, height int) string {
 
 	total := 0.0
 	for _, v := range values {
-		if v > 0 {
+		if finite(v) && v > 0 {
 			total += v
 		}
 	}
@@ -165,7 +190,7 @@ func renderPie(values []float64, labels []string, width, height int) string {
 	legendX := float64(height) + 10
 	legendY := 24.0
 	for i, v := range values {
-		if v <= 0 {
+		if !finite(v) || v <= 0 {
 			continue
 		}
 		frac := v / total
@@ -218,6 +243,9 @@ func renderChart(kind string, series [][]float64, width, height int) string {
 			maxLen = len(s)
 		}
 		for _, v := range s {
+			if !finite(v) {
+				continue
+			}
 			minV = math.Min(minV, v)
 			maxV = math.Max(maxV, v)
 		}
@@ -296,10 +324,16 @@ func renderLines(b *strings.Builder, series [][]float64, xAt func(int) float64, 
 		col := chartPalette[si%len(chartPalette)]
 		var pts strings.Builder
 		for i, v := range s {
-			if i > 0 {
+			if !finite(v) {
+				continue
+			}
+			if pts.Len() > 0 {
 				pts.WriteByte(' ')
 			}
 			fmt.Fprintf(&pts, "%.1f,%.1f", xAt(i), yAt(v))
+		}
+		if pts.Len() == 0 {
+			continue
 		}
 		fmt.Fprintf(b, `<polyline fill="none" stroke="%s" stroke-width="2" points="%s"/>`, col, pts.String())
 	}
@@ -314,8 +348,16 @@ func renderAreas(b *strings.Builder, series [][]float64, xAt func(int) float64, 
 		col := chartPalette[si%len(chartPalette)]
 		var pts strings.Builder
 		fmt.Fprintf(&pts, "%.1f,%.1f", xAt(0), zeroY)
+		drawn := 0
 		for i, v := range s {
+			if !finite(v) {
+				continue
+			}
+			drawn++
 			fmt.Fprintf(&pts, " %.1f,%.1f", xAt(i), yAt(v))
+		}
+		if drawn == 0 {
+			continue
 		}
 		fmt.Fprintf(&pts, " %.1f,%.1f", xAt(len(s)-1), zeroY)
 		fmt.Fprintf(b, `<polygon fill="%s" fill-opacity="0.2" stroke="none" points="%s"/>`, col, pts.String())
@@ -334,6 +376,9 @@ func renderBars(b *strings.Builder, series [][]float64, maxLen int, xAt func(int
 	for si, s := range series {
 		col := chartPalette[si%len(chartPalette)]
 		for i, v := range s {
+			if !finite(v) {
+				continue
+			}
 			cx := xAt(i) - groupW/2 + barW*float64(si)
 			y := yAt(v)
 			top := math.Min(y, zeroY)

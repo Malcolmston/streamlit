@@ -11,7 +11,7 @@
 [![Code Size](https://img.shields.io/github/languages/code-size/Malcolmston/streamlit)](https://github.com/Malcolmston/streamlit)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Docs](https://img.shields.io/badge/docs-pages-2f9bff)](https://malcolmston.github.io/streamlit/)
+[![Docs](https://img.shields.io/badge/docs-vercel-2f9bff)](https://go-malcolms-projects-18e573c3.vercel.app/lib/streamlit)
 
 A standard-library-only Go port of Streamlit — build interactive web & data apps by writing plain Go.
 
@@ -79,7 +79,12 @@ with no callbacks or manual DOM code on your part.
   handlers, or manual DOM updates.
 - **Session state** — a per-session key/value store (`s.State`, the analogue of
   `st.session_state`) that survives reruns, so counters, history, and cached
-  computations persist. Widget values are restored automatically on each run.
+  computations persist. Widget values are restored automatically on each run,
+  and — as in Streamlit — state for a widget a run did not draw is discarded, so
+  hiding and revealing a widget starts it from its default.
+- **Control flow** — `s.Stop()` halts a run (`st.stop`) and `s.Rerun()` abandons
+  it and re-executes the app from the top (`st.rerun`), the primitive for
+  repainting a page after a login or a mode switch.
 - **Display API** — `Title`, `Header`, `Subheader`, `Text`, `Markdown`,
   `Caption`, `Code`, `JSON` (optionally collapsible), `Metric`/`MetricColored`,
   `Table`/`DataFrame` (captions and a client-side sort hint), `Divider`, the
@@ -90,6 +95,10 @@ with no callbacks or manual DOM code on your part.
   `DateInput`, `TimeInput`, `ColorPicker`, `Feedback` (stars/thumbs),
   `DownloadButton` (serves bytes as a data URI), and `FileUploader` (multipart
   upload into session state). Every widget returns its current value.
+- **Extended widgets** — `Pills` and `SegmentedControl` chip selectors,
+  `SliderRange`/`SelectSliderRange`/`DateRangeInput` for tuple-valued inputs,
+  `PasswordInput`, `TextInputMax`, `NumberInputRange`, `PrimaryButton`, and the
+  `CameraInput`/`AudioInput` capture controls.
 - **Forms** — `Form` plus `FormSubmitButton` batch the widgets inside a form so
   their values commit together on submit rather than rerunning per keystroke.
 - **Chat** — `ChatMessage` bubbles and a pinned `ChatInput` for building
@@ -99,8 +108,12 @@ with no callbacks or manual DOM code on your part.
 - **Chart API** — `LineChart`, `AreaChart`, `BarChart`, `ScatterChart`,
   `PieChart`, and `Histogram`, all rendered to inline SVG on the server.
 - **Caching** — `s.Cache(key, compute, ttl…)` memoises an expensive computation
-  process-wide across reruns and sessions, the analogue of `@st.cache_data`.
-- **Layout** — `Columns`, `Container`, `Expander`, `Tabs`, `Popover`, `Status`,
+  process-wide across reruns and sessions (`@st.cache_data`): concurrent callers
+  share a single computation, and the table is bounded and evicts oldest-first.
+  `s.CacheResource(key, create)` is `@st.cache_resource` — a singleton that is
+  never expired or evicted, for connections and clients.
+- **Layout** — `Columns`, `ColumnsWeighted` (relative widths, `st.columns([3, 1])`),
+  `Container`, `BorderedContainer`, `Expander`, `Tabs`, `Popover`, `Status`,
   `Empty`, and a `Sidebar`. Because every method lives on `*Container`, the same
   API works for the main body, the sidebar, and each column.
 - **Embedded, dependency-free web UI** — a small single-page frontend is
@@ -108,6 +121,12 @@ with no callbacks or manual DOM code on your part.
   and no JavaScript framework.
 - **SVG charts** — charts are rendered to inline SVG on the server using only
   the standard library; there is no client-side charting dependency.
+- **Safe by default** — user text rendered as Markdown is escaped before any
+  formatting, and link/media URLs must pass a scheme allowlist, so a
+  `javascript:` target cannot reach an `href`. Raw HTML is opt-in via `Html` and
+  `MarkdownUnsafe`. Both POST endpoints check `Origin`, and every remotely
+  controlled allocation (sessions, uploads, request bodies, cache entries) is
+  bounded. See [docs/security.md](docs/security.md).
 - **Zero dependencies** — pure Go standard library; nothing to audit but the
   toolchain.
 
@@ -124,12 +143,41 @@ The fresh tree is returned as JSON and the browser updates. This is what lets
 app code be written as a plain top-to-bottom script instead of a graph of
 callbacks.
 
+## Deploying
+
+`st.Run` uses safe defaults. Use `st.RunWithOptions` (or `st.HandlerWithOptions`)
+to tune them:
+
+```go
+st.RunWithOptions(app, ":8501", st.Options{
+	MaxSessions:         200,
+	SessionIdleTimeout:  15 * time.Minute,
+	MaxUploadBytes:      4 << 20,
+	MaxRequestBytes:     256 << 10,
+	MaxWidgetEntries:    256,
+	MaxWidgetStateBytes: 256 << 10,
+	AllowedOrigins:      []string{"https://app.example.com"},
+})
+```
+
+Requests with no `Origin` header (curl, tests, server-to-server) are allowed;
+requests that declare one must match the host they were sent to or be listed in
+`AllowedOrigins`. See [docs/security.md](docs/security.md) for the full policy
+and the resource limits.
+
 ## Documentation
 
 - Full API reference on [pkg.go.dev](https://pkg.go.dev/github.com/malcolmston/streamlit/st).
-- See [`examples/main.go`](examples/main.go) for a complete app exercising the
-  display, widget, chart, and layout APIs.
-- Docs site: <https://malcolmston.github.io/streamlit/>.
+- [The execution model](docs/execution-model.md) — reruns, widget identity and
+  keys, the three state lifetimes, `Stop`/`Rerun`, caching. Read this one first.
+- [Security notes](docs/security.md) — escaping, the URL allowlist, origin
+  policy, resource limits, and what is out of scope.
+- [API deviations](API-DEVIATIONS.md) — where this port differs from upstream
+  Streamlit on purpose.
+- Examples: [`examples/main.go`](examples/main.go) exercises the display,
+  widget, chart and layout APIs; [`examples/hardened/main.go`](examples/hardened/main.go)
+  shows a multi-user deployment with `Options`, `Rerun` and `CacheResource`.
+- Docs site: <https://go-malcolms-projects-18e573c3.vercel.app/lib/streamlit>.
 
 ## License
 

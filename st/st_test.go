@@ -279,11 +279,11 @@ func TestJSONProtocolRoundTrip(t *testing.T) {
 
 func TestApplyEventUpdatesWidget(t *testing.T) {
 	s := newSession()
-	applyEvent(s, &event{Key: "k", Value: "hello"})
+	_ = applyEvent(s, &event{Key: "k", Value: "hello"}, Options{}.withDefaults())
 	if s.widgets["k"] != "hello" {
 		t.Errorf("widget not set: %v", s.widgets["k"])
 	}
-	applyEvent(s, &event{Key: "b", Button: true})
+	_ = applyEvent(s, &event{Key: "b", Button: true}, Options{}.withDefaults())
 	if !s.clicked["b"] {
 		t.Error("button click not recorded")
 	}

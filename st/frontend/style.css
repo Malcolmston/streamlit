@@ -191,3 +191,87 @@ a.st-download { display: inline-block; text-decoration: none; }
   font-size: .75rem; color: var(--muted); background: var(--sidebar-bg);
   border: 1px solid var(--border); padding: .2rem .5rem; border-radius: 4px;
 }
+
+/* ---- Elements added alongside the extended widget/effect surface ---- */
+
+/* Bordered container (st.container(border=True)). */
+.st-container.bordered {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: .75rem 1rem; margin: .5rem 0;
+}
+
+/* Raw HTML block (st.html) and LaTeX block (st.latex). */
+.st-html { margin: .5rem 0; }
+.st-latex {
+  font-family: "Latin Modern Math", "Cambria Math", Georgia, serif;
+  font-size: 1.05rem; text-align: center; margin: .75rem 0;
+  padding: .5rem; background: var(--code-bg); border-radius: 6px;
+  overflow-x: auto; white-space: pre-wrap;
+}
+
+/* Badge (st.badge). */
+.st-badge {
+  display: inline-block; padding: .1rem .5rem; border-radius: 999px;
+  font-size: .78rem; font-weight: 600; line-height: 1.5;
+  border: 1px solid transparent;
+}
+.st-badge.blue   { background: #e7f0fb; color: #17457c; border-color: #c7ddf6; }
+.st-badge.green  { background: #e6f5ec; color: #17603a; border-color: #c3e7d3; }
+.st-badge.red    { background: #fdeceb; color: #8a2320; border-color: #f7cecb; }
+.st-badge.orange { background: #fdf1e3; color: #8a5115; border-color: #f6dcbc; }
+.st-badge.violet { background: #f1ecfb; color: #4a2b8a; border-color: #ddd0f6; }
+.st-badge.grey   { background: #eef0f2; color: #444a50; border-color: #d9dde1; }
+
+/* Exception + help. */
+.st-exception {
+  border-left: 4px solid var(--accent); background: #fdeceb;
+  padding: .6rem .8rem; border-radius: 0 6px 6px 0; margin: .5rem 0;
+}
+.st-exception .type { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .8rem; color: #8a2320; }
+.st-exception .message { font-weight: 600; }
+.st-help { margin: .5rem 0; }
+.st-help > summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+
+/* Toasts float over the page and remove themselves. */
+.st-toast-anchor, .st-effect-anchor { display: none; }
+.st-toast {
+  position: fixed; right: 1rem; bottom: 2.5rem; z-index: 60;
+  background: var(--fg); color: var(--bg);
+  padding: .5rem .9rem; border-radius: 8px; font-size: .9rem;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+  animation: st-toast-in .25s ease-out;
+}
+@keyframes st-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Balloons / snow. */
+.st-effect-layer { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 50; }
+.st-effect-glyph { position: absolute; font-size: 1.6rem; }
+.st-effect-layer.balloons .st-effect-glyph { bottom: -3rem; animation: st-rise 3.2s ease-in forwards; }
+.st-effect-layer.snow .st-effect-glyph { top: -3rem; animation: st-fall 3.6s linear forwards; }
+@keyframes st-rise { to { transform: translateY(-110vh); opacity: 0; } }
+@keyframes st-fall { to { transform: translateY(110vh); opacity: 0; } }
+
+/* Link button + page link. */
+a.st-link-button {
+  display: inline-block; text-decoration: none; background: var(--accent);
+  color: #fff; padding: .4rem .8rem; border-radius: 6px; font-size: .9rem;
+}
+a.st-page-link { color: var(--accent); font-weight: 600; text-decoration: none; }
+a.st-page-link:hover { text-decoration: underline; }
+
+/* Pills / segmented control. */
+.st-chip-row { display: flex; flex-wrap: wrap; gap: .35rem; }
+.st-chip {
+  border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+  padding: .25rem .7rem; border-radius: 999px; cursor: pointer; font-size: .85rem;
+}
+.st-chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.st-segmented .st-chip { border-radius: 0; }
+.st-segmented .st-chip:first-child { border-radius: 6px 0 0 6px; }
+.st-segmented .st-chip:last-child { border-radius: 0 6px 6px 0; }
+.st-segmented .st-chip-row { gap: 0; }
+
+/* Range sliders and date ranges. */
+.st-slider-range input, .st-select-slider-range input { width: 100%; display: block; }
+.st-range-sep { color: var(--muted); }
+.st-date-range { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }

@@ -1,10 +1,11 @@
 {
   "repo": "streamlit",
   "upstream": "streamlit/streamlit",
-  "parityBefore": "76%",
-  "parityAfter": "93%",
-  "upstreamCasesSynced": 31,
-  "gapsFound": 3,
-  "gapsClosed": 3,
-  "asOf": "2026-07-18"
+  "parityBefore": "93%",
+  "parityAfter": "96%",
+  "upstreamCasesSynced": 47,
+  "gapsFound": 8,
+  "gapsClosed": 8,
+  "asOf": "2026-08-05",
+  "notes": "Closed this pass: st.rerun; st.cache_resource; st.markdown(unsafe_allow_html=); st.columns([weights]); st.set_page_config applied in the browser; stale-widget-state cleanup on rerun; session_state helpers (Has/Len/Keys/Clear/SetDefault/GetBool); and 17 element types the server emitted but the frontend never rendered (pills, segmented_control, slider_range, select_slider_range, date_range_input, camera_input, audio_input, latex, html, badge, echo, exception, help, toast, effect, link_button, page_link). Remaining deviations are recorded in API-DEVIATIONS.md."
 }

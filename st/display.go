@@ -46,8 +46,29 @@ func (c *Container) Text(text string) { c.add("text", props{"text": text}) }
 func (c *Container) Caption(text string) { c.add("caption", props{"text": text}) }
 
 // Markdown adds text rendered with a small, safe subset of Markdown
-// (headings, bold, italics, inline code, links and lists) by the frontend.
+// (ATX headings, bold, italics, inline code, links and unordered lists) by the
+// frontend.
+//
+// The text is treated as untrusted: every character is HTML-escaped before any
+// formatting is applied, and a link target is emitted only when its scheme is
+// one of http, https, mailto, tel, ftp, ftps or sms — a `javascript:` URL is
+// replaced with "#". This mirrors Streamlit, where st.markdown escapes HTML
+// unless unsafe_allow_html is set; see [Container.MarkdownUnsafe] for the
+// opt-in.
 func (c *Container) Markdown(text string) { c.add("markdown", props{"text": text}) }
+
+// MarkdownUnsafe is [Container.Markdown] with HTML passed through instead of
+// escaped, mirroring st.markdown(body, unsafe_allow_html=True).
+//
+// The name is a warning, not decoration: anything in text that looks like a tag
+// becomes a tag, so a string containing untrusted input can inject script into
+// every viewer's page. Use [Container.Markdown] unless the whole string is
+// under your control. Markdown link targets are still restricted to safe
+// schemes, but raw <a href="javascript:…"> in the HTML is not — that is the
+// point of the opt-in.
+func (c *Container) MarkdownUnsafe(text string) {
+	c.add("markdown", props{"text": text, "unsafeAllowHTML": true})
+}
 
 // Divider adds a horizontal rule.
 func (c *Container) Divider() { c.add("divider", nil) }

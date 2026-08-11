@@ -223,12 +223,12 @@ func TestFormDefersUntilSubmit(t *testing.T) {
 	}
 
 	// Submit: the batch event commits every staged value and clicks the button.
-	applyEvent(s, &event{
+	_ = applyEvent(s, &event{
 		Key:    "signup",
 		Button: true,
 		Form:   "signup",
 		Values: map[string]any{textKey: "alice"},
-	})
+	}, Options{}.withDefaults())
 	s.run(app)
 	if got := s.State.GetString("name", ""); got != "alice" {
 		t.Fatalf("after submit name = %q, want alice", got)

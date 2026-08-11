@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-11
+### Security
+- **Unauthenticated remote memory exhaustion (medium).** Everything a remote,
+  unauthenticated client could grow in the server's memory was unbounded in
+  0.3.0: `POST /api/run` read the request body with no size limit, the session
+  table gained an entry for every request presenting an unknown session id and
+  never lost one, and widget state accumulated an entry per client-chosen key,
+  of client-chosen size, for keys the app never rendered. Measured against
+  0.3.0: 5000 requests with made-up ids retained 5000 sessions, a 50 MiB body
+  was accepted with 200, and 20 000 events for unrendered keys retained 20 000
+  widget entries on a single session.
+
+  Every one of those is now bounded, with the ceilings exposed as `Options`
+  fields with safe defaults: `MaxRequestBytes` (1 MiB, enforced with
+  `http.MaxBytesReader`), `MaxUploadBytes` (32 MiB, which also stops multipart
+  parts spilling to disk without limit), `MaxSessions` (1000, evicting the
+  least recently used session), `SessionIdleTimeout` (30 minutes, reclaiming
+  idle sessions), `MaxWidgetEntries` (1024 per session) and
+  `MaxWidgetStateBytes` (1 MiB per session). Widget keys are limited to 256
+  bytes and a form submission to 512 of them, and widget state for keys the run
+  did not render is discarded at the end of the run. An oversized body or an
+  event that would exceed a session's widget budget is answered with **413**
+  before anything is allocated; a request carrying a foreign `Origin` is
+  answered with **403**.
+
+  See [docs/security.md](docs/security.md) for the full table and
+  [`examples/hardened/main.go`](examples/hardened/main.go) for a worked
+  configuration.
+
+### Added
+- `HandlerWithOptions` / `RunWithOptions` and the `Options` type: resource
+  limits (above) plus the origin policy (`AllowedOrigins`, `AllowAllOrigins`).
+- `Session.Rerun` (`st.rerun`), `CacheResource` (`st.cache_resource`),
+  `MarkdownUnsafe` (`unsafe_allow_html=True`), weighted `Columns([]float64)`,
+  and session-state helpers `Has`, `Len`, `Keys`, `Clear`, `SetDefault`,
+  `GetBool`.
+- Frontend rendering for the 17 element types the server emitted but the page
+  never drew (pills, segmented control, range sliders, date range, camera and
+  audio input, latex, html, badge, echo, exception, help, toast, effects, link
+  button, page link).
+- Docs: `docs/security.md`, `docs/execution-model.md`, `API-DEVIATIONS.md`, and
+  a hardened example.
+
+### Changed
+- Widget state is pruned to what the run rendered, matching Streamlit: a widget
+  hidden by a branch loses its value and shows its default when revealed again.
+- An oversized `/api/run` body or upload now returns 413 rather than 400, so a
+  caller can tell "too big" from "malformed".
+- Charts skip non-finite values instead of emitting `NaN`/`Inf` into JSON.
+
 ## [0.3.0] - 2026-07-18
 ### Added
 - Display & effects (closer to Streamlit's `st` surface): `Latex`, `Html`,

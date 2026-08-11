@@ -19,6 +19,14 @@
 // can be written as a simple straight-line script: there are no callbacks,
 // event handlers, or manual DOM updates.
 //
+// Two rules follow from that model and are worth internalising early.
+// [Session.Stop] halts a run and [Session.Rerun] abandons one and starts it
+// again from the top. And widget state lives exactly as long as the app keeps
+// rendering the widget: state for a widget a run did not draw is discarded at
+// the end of that run, so hiding and revealing a widget starts it from its
+// default — the same behaviour as Streamlit. Give any widget that is not
+// unconditionally rendered an explicit key.
+//
 // # Sessions and containers
 //
 // A [Session] represents one browser connection. It embeds the root
@@ -73,10 +81,17 @@
 //     [Container.TextInput], [Container.TextArea], [Container.SelectBox],
 //     [Container.Radio], [Container.MultiSelect], [Container.DateInput],
 //     [Container.TimeInput], [Container.ColorPicker], [Container.Feedback],
-//     [Container.DownloadButton] and [Container.FileUploader].
-//   - Layout: [Container.Columns], [Container.Container], [Container.Expander],
-//     [Container.Tabs], [Container.Popover], [Container.Status],
-//     [Container.Empty] and [Session.Sidebar].
+//     [Container.DownloadButton] and [Container.FileUploader]. The extended
+//     set adds [Container.Pills], [Container.SegmentedControl],
+//     [Container.PrimaryButton], [Container.PasswordInput],
+//     [Container.TextInputMax], [Container.NumberInputRange],
+//     [Container.SliderRange], [Container.SelectSliderRange],
+//     [Container.DateRangeInput], [Container.CameraInput] and
+//     [Container.AudioInput].
+//   - Layout: [Container.Columns], [Container.ColumnsWeighted],
+//     [Container.Container], [Container.BorderedContainer],
+//     [Container.Expander], [Container.Tabs], [Container.Popover],
+//     [Container.Status], [Container.Empty] and [Session.Sidebar].
 //   - Forms: [Container.Form] with [Container.FormSubmitButton] batch widget
 //     updates until the form is submitted.
 //   - Chat: [Container.ChatMessage] and [Container.ChatInput].
@@ -88,14 +103,28 @@
 //     [Container.Histogram].
 //   - Caching: [Session.Cache] memoises an expensive computation process-wide,
 //     across reruns and sessions, with an optional TTL — the analogue of
-//     st.cache_data. [CacheClear] evicts every cached entry.
+//     st.cache_data. [Session.CacheResource] is the st.cache_resource
+//     analogue: a singleton that never expires. [CacheClear], [CacheDelete]
+//     and [CacheResourceClear] invalidate them.
+//
+// # Safety
+//
+// Text rendered as Markdown is escaped before any formatting is applied, and a
+// link or media URL is emitted only if its scheme is on an allowlist, so a
+// javascript: target cannot reach an href. Raw HTML is opt-in through
+// [Container.Html] and [Container.MarkdownUnsafe]. Both POST endpoints reject a
+// request whose Origin header names another site, and every allocation a remote
+// caller can grow — sessions, uploaded bytes, request bodies, cache entries,
+// widget keys — is bounded; see [Options].
 //
 // # Deferred features
 //
 // This is a compact reimplementation of a large framework. Deliberately
-// deferred: custom components, resource caching (st.cache_resource),
-// multipage apps, real-time streaming/async widgets, in-place dataframe
-// editing and theming APIs. The synchronous long-poll-free transport also
-// means [Container.Spinner] and [Container.Progress] are snapshots of the
-// completed run rather than live-updating during work.
+// deferred: custom components, multipage apps, fragments, real-time
+// streaming/async widgets, in-place dataframe editing, query parameters and
+// theming APIs. The synchronous long-poll-free transport also means
+// [Container.Spinner] and [Container.Progress] are snapshots of the completed
+// run rather than live-updating during work. The full list, and every place
+// this port's semantics differ from upstream on purpose, is in
+// API-DEVIATIONS.md.
 package st
